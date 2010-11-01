@@ -1,0 +1,7 @@
+Documentation says attributes go from 1 to 283, but they go from 0 to 287.
+
+As the code is currently set up, it's impossible to ask about attribute 0
+(since that case corresponds to guessing the last bird).
+
+The current code doesn't return "I don't know" when the attribute is not
+listed in 'dataset.txt'
