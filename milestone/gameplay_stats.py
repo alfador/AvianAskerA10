@@ -58,7 +58,7 @@ for bird in range(1, len(train)):
 
     QAs = []
     while True:
-        Q = AvianAsker_A10.ask(QAs)
+        Q = AvianAsker_A10.myAvianAsker(QAs)
         if Q-nattributes+1 == bird:
             # Correct guess
             break

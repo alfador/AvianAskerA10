@@ -51,7 +51,7 @@ for lines in infile.readlines():
 #Begin new game
 QAs = []
 while True:
-	Q = AvianAsker_A10.ask(QAs)
+	Q = AvianAsker_A10.myAvianAsker(QAs)
 	if Q-nattributes+1 == rndbrd:
                 print("Is it "+" ".join(spec_dict[str(Q-nattributes+1)][1].split('_'))+"?")
                 print("You have guessed correctly, the bird is "+" ".join(spec_dict[str(rndbrd)][1].split('_'))+"\n")

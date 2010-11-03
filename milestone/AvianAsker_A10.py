@@ -73,10 +73,10 @@ class AvianAskerA10():
         # or fewer viable birds, just start guessing.
         # Note: Might need to change this if only allowed one guess.
         current_viable = viable.count(True)
-        print 'current viable: %d' % current_viable
+        #print 'current viable: %d' % current_viable
         if current_viable <= 4:
             bird_number = viable.index(True) + 1
-            print 'Guessing bird number: %d' % bird_number
+            #print 'Guessing bird number: %d' % bird_number
             # Convert to range (288-487)
             return bird_number + nattributes - 1
 
@@ -97,21 +97,11 @@ class AvianAskerA10():
             if max_size < best_size:
                 best_size = max_size
                 best_question = q
-        print 'best question: %d, max remaining viable: %d' % \
+        #print 'best question: %d, max remaining viable: %d' % \
             (best_question, best_size)
 
         return best_question
 
-    def _alpha_beta_player(self, viable, alpha, beta, depth):
-        '''
-        Alpha-beta when at a node corresponding to asking a question.
-        '''
-        num_viable = viable.count(True)
-        if depth == 0 or num_viable == 1:
-            return num_viable
-        # TODO, possibly
-
-            
 
     def _update_viable(self, viable, question, answer):
         '''
@@ -153,14 +143,13 @@ class AvianAskerA10():
         attribute_num = question
         attribute = self.attributes[attribute_num]
 
-        # Make list of True and False for matching the attribute value
-        match_att_func = lambda x: answer == x
-        match_att = map(match_att_func, attribute)
-
-        # Update viable list
-        new_viable_func = lambda i: viable[i] and match_att[i]
+        # Update viable list.  The birds that are now viable should include
+        # only the birds that were already viable which also have a matching
+        # attribute.
+        new_viable_func = lambda i: viable[i] and attribute[i] == answer
         new_viable = map(new_viable_func, range(nspecies))
         return new_viable
+
 
     def _print_ids(self, viable, val):
         '''
@@ -174,7 +163,7 @@ class AvianAskerA10():
         print
 
 
-def ask(questions):
+def myAvianAsker(questions):
     '''
     Queries the asker for a question to ask.
     Input:
@@ -185,11 +174,15 @@ def ask(questions):
     # Convert inputs to integers because we might be passed in strings (wtf)
     questions = [[int(a), int(b)] for [a, b] in questions]
 
-    print 'got questions: %s' % questions
-    asker = AvianAskerA10()
+    #print 'got questions: %s' % questions
     question = asker.ask_question(questions)
-    print 'asking question %d' % question
+    #print 'asking question %d' % question
     return question
+
+
+# Make this global so the initialization code doesn't have to run at every
+# question.
+asker = AvianAskerA10()
 
 if __name__ == '__main__':
     asker = AvianAskerA10()
