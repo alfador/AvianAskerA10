@@ -117,7 +117,7 @@ class BayesAsker_A10():
             # The answer is either a string '0' for incorrect guess, '2' for
             # don't know, or a list [present, confidence]
             if type(answer) is str:
-                answer = int(answer):
+                answer = int(answer)
                 if answer == 0:
                     # Incorrect guess
                     species = question - nattributes # [0, 199]
@@ -165,12 +165,17 @@ class BayesAsker_A10():
         max_neg_entropy = -nspecies # Negative entropy bounded below by -lg(|S|)
         best_question = -1
         for Y in xrange(nattributes): # argmax Y
+            # Don't ask questions we got 'don't know' back from
+            if Y in bad_questions:
+                continue
             neg_entropy = 0
             for y in [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]: # sum_y
                 prob_y = self.probability.prob([[Y, y]]) # p(y)
                 usable_questions.append([Y, y])
                 prob_qk_y = self.probability.prob(usable_questions) # p(q^k, y)
                 for s in xrange(nspecies): # sum_s
+                    # TODO: For a significant speedup, take these out of
+                    # function calls and hard-code into the for loop.
                     prob_qk_y_s = self.probability.cond_prob(usable_questions,
                         s) # p(q^k, y | s)
                     # distribution takes into account wrong guesses, which
@@ -228,8 +233,48 @@ class probability:
         pass
 
 
+class dummy_probability(probability):
+    '''Returns probabilities that are valid but meaningless.  Only used for
+    testing.'''
+
+    def __init__(self, counts):
+        '''Initializes this probability distribution, given a dictionary of
+        counts.  The keys of counts take the form (species, attribute), and
+        the values are [[c00, c01, c02], [c10, c11, c12]], where cij is the
+        count of answer i with certainty j.  species and attribute are
+        0-indexed.
+        '''
+        # Each possible answer will be equally probable.  Since there are 6
+        # possible [present, confidence] pairs, 
+        self.base_prob = 1. / 6
+        pass
+
+
+    def prob(self, questions):
+        '''Returns the probability p(q_1, ..., q_k) of the given questions.
+        questions is a list of [question, [answer, confidence]].
+        '''
+        # All answers are uniformly probable
+        return self.base_prob ** len(questions)
+
+    def cond_prob(self, questions, species):
+        '''Returns the probability p(q_1, ..., q_k | s) of the given questions.
+        questions is a list of [question, [answer, confidence]], and species is
+        an integer in (0, 199) giving the species of the bird.
+        '''
+        # Independent of species
+        return self.base_prob ** len(questions)
 
 
 
 if __name__ == '__main__':
     asker = BayesAsker_A10()
+    asker.init()
+    asker.probability = dummy_probability(None)
+    import time
+    start_time = time.time()
+    print asker.myAvianAsker('image', [])
+    print "time taken to ask question: ", time.time() - start_time
+    import cProfile
+    asker.init()
+    cProfile.run('asker.myAvianAsker("image", [])')

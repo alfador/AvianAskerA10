@@ -33,13 +33,14 @@ for i in image_dir.readlines():
                 spec_dict[int(specy[0])] = name[0]
 
 #Open dataset
+### NOTE: THIS LINE TAKES ABOUT 3.5 MINUTES ON MY COMPUTER
 dataset = open("./student/student_cPickle.txt","r")
 data = cPickle.load(dataset)
 dataset.close()
 
 #Begin new game
 Sum = 0
-n = 1000
+n = 1
 #AA = AvianAsker_A##()
 for i in range(n):
         image_id = random.choice([k for k in image.keys()])
@@ -65,9 +66,10 @@ for i in range(n):
                 else:                
                         print("It "+ Ques_dict[str(Q)] +"?")
                         if Q in data[image_id].keys():
-                                A = data[image_id][Q]
+                                A = random.choice(data[image_id][Q])
                         else:
                                 A = '2'
+                        print(str(Q)+" "+str(A))
                         if A == [1,0]:
                                 print("Yes! Probably.\n")
                         elif A == [1,1]:
@@ -84,9 +86,6 @@ for i in range(n):
                                 print("I don't know!\n")
 
                 QAs.append([Q, A])
-                f = open("QA.txt", "w")
-                f.write(str(QAs))
-                f.close()
         print("Num is " + str(i+1) + ", Sum is "+str(Sum)+", Score now is "+str(Sum/(i+1)))
 print("Your final score is "+str(Sum/n))
 
