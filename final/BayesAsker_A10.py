@@ -69,14 +69,16 @@ class BayesAsker_A10():
                 += 1
         dataset_file.close()
 
-        # Construct a probability distribution
-        # NOTE: CHANGE CLASSNAME TO WHATEVER PROBABILITY DISTRIBUTION IS
-        # BEING USED.
-        self.probability = probability(attribute_counts)
-
         # Determine priors
         # TODO: Should this really be uniform?
         self.priors = [1. / nspecies] * nspecies
+
+        # Construct a probability distribution
+        # NOTE: CHANGE CLASSNAME TO WHATEVER PROBABILITY DISTRIBUTION IS
+        # BEING USED.
+        self.probability = independent_probability(attribute_counts,
+                                                   self.priors)
+
 
 
     def init(self):
@@ -164,7 +166,8 @@ class BayesAsker_A10():
 
         max_neg_entropy = -nspecies # Negative entropy bounded below by -lg(|S|)
         best_question = -1
-        for Y in xrange(nattributes): # argmax Y
+        # Ignore attribute 0, which we have almost no data on.
+        for Y in xrange(1, nattributes): # argmax Y
             # Don't ask questions we got 'don't know' back from
             if Y in bad_questions:
                 continue
@@ -184,6 +187,7 @@ class BayesAsker_A10():
                     prob_s_qk_y = prob_qk_y_s * prob_s / prob_qk_y
                     # Should divide by log(2), but this isn't necessary for
                     # argmax
+                    print 'p(s): ', prob_s, 'p(q^k, y | s): ', prob_qk_y_s
                     neg_entropy += prob_s_qk_y * math.log(prob_s_qk_y)
                 usable_questions.pop()
             if neg_entropy > max_neg_entropy:
@@ -209,12 +213,12 @@ class probability:
     indicating the name of the method to implement.
     '''
 
-    def __init__(self, counts):
+    def __init__(self, counts, priors):
         '''Initializes this probability distribution, given a dictionary of
         counts.  The keys of counts take the form (species, attribute), and
         the values are [[c00, c01, c02], [c10, c11, c12]], where cij is the
         count of answer i with certainty j.  species and attribute are
-        0-indexed.
+        0-indexed.  priors is a list of prior probabilities on the species.
         '''
         pass
 
@@ -237,12 +241,12 @@ class dummy_probability(probability):
     '''Returns probabilities that are valid but meaningless.  Only used for
     testing.'''
 
-    def __init__(self, counts):
+    def __init__(self, counts, priors):
         '''Initializes this probability distribution, given a dictionary of
         counts.  The keys of counts take the form (species, attribute), and
         the values are [[c00, c01, c02], [c10, c11, c12]], where cij is the
         count of answer i with certainty j.  species and attribute are
-        0-indexed.
+        0-indexed.  priors is a list of prior probabilities on the species.
         '''
         # Each possible answer will be equally probable.  Since there are 6
         # possible [present, confidence] pairs, 
@@ -266,11 +270,82 @@ class dummy_probability(probability):
         return self.base_prob ** len(questions)
 
 
+class independent_probability(probability):
+    '''Represents a probability distribution where the attributes are all
+    independent.'''
+
+    # IMPLEMENTATION NOTES:
+    # IF THE GIVEN COUNTS DON'T INCLUDE ANY INSTANCES OF A (SPECIES, ATTRIBUTE)
+    # PAIR, THOSE PROBABILITIES ARE SET TO 0.
+
+
+    def __init__(self, counts, priors):
+        '''Initializes this probability distribution, given a dictionary of
+        counts.  The keys of counts take the form (species, attribute), and
+        the values are [[c00, c01, c02], [c10, c11, c12]], where cij is the
+        count of answer i with certainty j.  species and attribute are
+        0-indexed.  priors is a list of prior probabilities.
+        '''
+        # Get probabilities p(q | s)
+        # Probabilities are indexed by [species][attribute]
+        self.species_attributes = [[None] * nattributes for _ in
+                                   range(nspecies)]
+        for key in counts.keys():
+            (species, attribute) = key
+            [c0, c1] = counts[key]
+            total_count = float(sum(c0) + sum(c1))
+            total_count = max(total_count, 1)
+            p0 = [c / total_count for c in c0]
+            p1 = [c / total_count for c in c1]
+            self.species_attributes[species][attribute] = [p0, p1]
+
+        # Get probabilities p(q) = p(S) p(q | S)
+        self.attributes = [None] * nattributes
+        for att in xrange(nattributes):
+            prob_sum = [[0., 0., 0.], [0., 0., 0.]]
+            for species in xrange(nspecies):
+                # [[p00, p01, p02], [p10, p11, p12]]
+                att_probs = self.species_attributes[species][att]
+                for i in range(3):
+                    prob_sum[0][i] += priors[species] * att_probs[0][i]
+                    prob_sum[1][i] += priors[species] * att_probs[1][i]
+            self.attributes[att] = prob_sum
+
+
+    def prob(self, questions):
+        '''Returns the probability p(q_1, ..., q_k) of the given questions.
+        questions is a list of [question, [answer, confidence]].
+        '''
+        # TODO: Work with log probabilities instead?
+        # Assume independence
+        prob = 1.
+        for [q, [a, c]] in questions:
+            # q is an attribute number [0, 287]
+            # a is 0 or 1
+            # c is 0, 1, or 2
+            prob *= self.attributes[q][a][c]
+        return prob
+
+    def cond_prob(self, questions, species):
+        '''Returns the probability p(q_1, ..., q_k | s) of the given questions.
+        questions is a list of [question, [answer, confidence]], and species is
+        an integer in (0, 199) giving the species of the bird.
+        '''
+        # Assume independence
+        # p(q_1, ..., q_k | s) = p(q_1 | s) p(q_2 | s) ... p(q_k | s)
+        print 'got questions: ', questions
+        print 'got species: ', species
+        prob = 1.
+        for [q, [a, c]] in questions:
+            prob *= self.species_attributes[species][q][a][c]
+        return prob
+
+
 
 if __name__ == '__main__':
     asker = BayesAsker_A10()
     asker.init()
-    asker.probability = dummy_probability(None)
+    # asker.probability = dummy_probability(None, None)
     import time
     start_time = time.time()
     print asker.myAvianAsker('image', [])
