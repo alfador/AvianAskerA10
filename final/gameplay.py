@@ -1,5 +1,5 @@
 import random
-#from AvianAsker_A## import *
+from BayesAsker_A10 import *## import *
 import cPickle
 
 nspecies = 200
@@ -40,13 +40,14 @@ dataset.close()
 
 #Begin new game
 Sum = 0
-n = 1
-#AA = AvianAsker_A##()
+n = 100
+AA = BayesAsker_A10()##()
 for i in range(n):
         image_id = random.choice([k for k in image.keys()])
-        rndbrd = int((image[image_id].split("."))[0])        
-        #AA.init()
-        #myAvianAsker = AA.myAvianAsker
+        rndbrd = int((image[image_id].split("."))[0])       
+        print 'DEBUG: BIRD IS: ', rndbrd 
+        AA.init()
+        myAvianAsker = AA.myAvianAsker
         QAs = []
         while True:
                 Q = myAvianAsker(image[image_id], QAs)

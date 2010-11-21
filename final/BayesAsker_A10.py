@@ -114,7 +114,9 @@ class BayesAsker_A10():
         # asking what the bird is.
         # This will be a list of question, answer pairs
         usable_questions = []
-        bad_questions = [] # Questions which returned an answer of 'don't know'
+        # Questions which returned an answer of 'don't know' or questions that
+        # were already asked.
+        bad_questions = []
         for [question, answer] in questions:
             # The answer is either a string '0' for incorrect guess, '2' for
             # don't know, or a list [present, confidence]
@@ -130,9 +132,13 @@ class BayesAsker_A10():
                     # of data.  We shouldn't ask this question again.
                     bad_questions.append(question)
 
-            # Otherwise, the answer takes the form [present, confidence].
-            # Just add the question to the questions that have been asked.
-            usable_questions.append([question, answer])
+            else:
+                # Otherwise, the answer takes the form [present, confidence].
+                # Just add the question to the questions that have been asked.
+                usable_questions.append([question, answer])
+
+            # Already asked that question.
+            bad_questions.append(question)
 
         # Since we may have changed the probability distribution, re-normalize
         p_sum = sum(distribution)
@@ -146,11 +152,24 @@ class BayesAsker_A10():
             posterior_distribution[i] = self.probability.cond_prob(
                 usable_questions, i) * prob / prob_questions
 
+        # TODO: Why isn't this sum 1?
+        dist_sum = sum(posterior_distribution)
+        print 'Sum prob: ', dist_sum
+        posterior_distribution = [p / dist_sum for p in posterior_distribution]
+
+        max_prob = max(posterior_distribution)
+        print 'Max prob: ', max_prob
+        # Calculate current entropy and print it out.
+        entropy = 0
+        for p in posterior_distribution:
+            if p != 0:
+                entropy += p * math.log(1. / p)
+        print 'Species entropy: ', entropy / math.log(2)
+
         # If any of the probabilities are above some threshold, guess that bird
-        max_prob = max(distribution)
         if max_prob > .25:
             # TODO: Optimize this value
-            best_species = distribution.index(max_prob)
+            best_species = posterior_distribution.index(max_prob)
             guess = best_species + nattributes
             return guess
 
@@ -166,6 +185,8 @@ class BayesAsker_A10():
 
         max_neg_entropy = -nspecies # Negative entropy bounded below by -lg(|S|)
         best_question = -1
+        log = math.log # Minor speedups
+        cond_prob = self.probability.cond_prob
         # Ignore attribute 0, which we have almost no data on.
         for Y in xrange(1, nattributes): # argmax Y
             # Don't ask questions we got 'don't know' back from
@@ -179,16 +200,18 @@ class BayesAsker_A10():
                 for s in xrange(nspecies): # sum_s
                     # TODO: For a significant speedup, take these out of
                     # function calls and hard-code into the for loop.
-                    prob_qk_y_s = self.probability.cond_prob(usable_questions,
-                        s) # p(q^k, y | s)
+                    prob_qk_y_s = cond_prob(usable_questions, s) # p(q^k, y | s)
                     # distribution takes into account wrong guesses, which
                     # are not part of the usable questions.
                     prob_s = distribution[s] # p(S)
                     prob_s_qk_y = prob_qk_y_s * prob_s / prob_qk_y
                     # Should divide by log(2), but this isn't necessary for
                     # argmax
-                    print 'p(s): ', prob_s, 'p(q^k, y | s): ', prob_qk_y_s
-                    neg_entropy += prob_s_qk_y * math.log(prob_s_qk_y)
+                    # The limit of what we're adding as prob_s_qk_y -> 0
+                    # is 0, so don't add anything in that case.
+                    if prob_s_qk_y != 0:
+                        # sum_y p(y) * sum_s p(s | q^k, y) lg(p(s | q^k, y))
+                        neg_entropy += prob_y * prob_s_qk_y * log(prob_s_qk_y)
                 usable_questions.pop()
             if neg_entropy > max_neg_entropy:
                 max_neg_entropy = neg_entropy
@@ -299,7 +322,7 @@ class independent_probability(probability):
             p1 = [c / total_count for c in c1]
             self.species_attributes[species][attribute] = [p0, p1]
 
-        # Get probabilities p(q) = p(S) p(q | S)
+        # Get probabilities p(q) = sum_s p(s) p(q | s)
         self.attributes = [None] * nattributes
         for att in xrange(nattributes):
             prob_sum = [[0., 0., 0.], [0., 0., 0.]]
@@ -312,12 +335,13 @@ class independent_probability(probability):
             self.attributes[att] = prob_sum
 
 
+
     def prob(self, questions):
         '''Returns the probability p(q_1, ..., q_k) of the given questions.
         questions is a list of [question, [answer, confidence]].
         '''
-        # TODO: Work with log probabilities instead?
         # Assume independence
+        # TODO: Do a sum over birds.
         prob = 1.
         for [q, [a, c]] in questions:
             # q is an attribute number [0, 287]
@@ -333,8 +357,6 @@ class independent_probability(probability):
         '''
         # Assume independence
         # p(q_1, ..., q_k | s) = p(q_1 | s) p(q_2 | s) ... p(q_k | s)
-        print 'got questions: ', questions
-        print 'got species: ', species
         prob = 1.
         for [q, [a, c]] in questions:
             prob *= self.species_attributes[species][q][a][c]
