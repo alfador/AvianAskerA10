@@ -12,6 +12,11 @@ dataset_filename = 'student/student_dataset.txt'
 nspecies = 200
 nattributes = 288
 
+# Parameters
+prob_cutoff = .25 # If the max probability is above this, guess a bird.
+diffuse_multiplier = .01 # Parameters for diffuse regularization
+num_diffusions = 5
+
 class BayesAsker_A10():
     '''Asker using a simplistic Bayes net.'''
     # TODO: This doesn't really use a Bayes net, so rename it.
@@ -76,8 +81,8 @@ class BayesAsker_A10():
         # Construct a probability distribution
         # NOTE: CHANGE CLASSNAME TO WHATEVER PROBABILITY DISTRIBUTION IS
         # BEING USED.
-        self.probability = independent_probability(attribute_counts,
-                                                   self.priors)
+        self.probability = independent_probability_diffuse(attribute_counts,
+           self.priors)
 
 
 
@@ -167,7 +172,7 @@ class BayesAsker_A10():
         print 'Species entropy: ', entropy / math.log(2)
 
         # If any of the probabilities are above some threshold, guess that bird
-        if max_prob > .25:
+        if max_prob > prob_cutoff:
             # TODO: Optimize this value
             best_species = posterior_distribution.index(max_prob)
             guess = best_species + nattributes
@@ -197,6 +202,12 @@ class BayesAsker_A10():
                 prob_y = self.probability.prob([[Y, y]]) # p(y)
                 usable_questions.append([Y, y])
                 prob_qk_y = self.probability.prob(usable_questions) # p(q^k, y)
+                # If the probability of getting these answers is 0, we'll be
+                # dealing with nonsense distributions.
+                # TODO: Does it make more sense to just continue through this
+                # for loop or continue through the outer one too?
+                if prob_qk_y == 0:
+                    continue
                 for s in xrange(nspecies): # sum_s
                     # TODO: For a significant speedup, take these out of
                     # function calls and hard-code into the for loop.
@@ -309,6 +320,8 @@ class independent_probability(probability):
         count of answer i with certainty j.  species and attribute are
         0-indexed.  priors is a list of prior probabilities.
         '''
+        self.priors = priors
+
         # Get probabilities p(q | s)
         # Probabilities are indexed by [species][attribute]
         self.species_attributes = [[None] * nattributes for _ in
@@ -340,15 +353,21 @@ class independent_probability(probability):
         '''Returns the probability p(q_1, ..., q_k) of the given questions.
         questions is a list of [question, [answer, confidence]].
         '''
-        # Assume independence
-        # TODO: Do a sum over birds.
-        prob = 1.
-        for [q, [a, c]] in questions:
-            # q is an attribute number [0, 287]
-            # a is 0 or 1
-            # c is 0, 1, or 2
-            prob *= self.attributes[q][a][c]
-        return prob
+        # Assume independence given the bird.
+        # Sum over birds
+        # TODO: Make this faster.  This slows down the overall algorithm by
+        # a factor of roughly 2.
+        sum_prob = 0.
+        for species in range(nspecies):
+            prob = 1.
+            for [q, [a, c]] in questions:
+                # q is an attribute number [0, 287]
+                # a is 0 or 1
+                # c is 0, 1, or 2
+                prob *= self.species_attributes[species][q][a][c]
+            sum_prob += prob * self.priors[species]
+        return sum_prob
+
 
     def cond_prob(self, questions, species):
         '''Returns the probability p(q_1, ..., q_k | s) of the given questions.
@@ -363,11 +382,83 @@ class independent_probability(probability):
         return prob
 
 
+class independent_probability_diffuse(independent_probability):
+    '''Represents a probability distribution where the attributes are all
+    independent and regularization is done using a pseudo-diffusive procedure.
+    '''
+
+    # IMPLEMENTATION NOTES:
+    # IF THE GIVEN COUNTS DON'T INCLUDE ANY INSTANCES OF A (SPECIES, ATTRIBUTE)
+    # PAIR, THOSE PROBABILITIES ARE SET TO 0.
+
+
+    def __init__(self, counts, priors):
+        '''Initializes this probability distribution, given a dictionary of
+        counts.  The keys of counts take the form (species, attribute), and
+        the values are [[c00, c01, c02], [c10, c11, c12]], where cij is the
+        count of answer i with certainty j.  species and attribute are
+        0-indexed.  priors is a list of prior probabilities.
+        '''
+        self.priors = priors
+
+        # Get probabilities p(q | s)
+        # Probabilities are indexed by [species][attribute]
+        self.species_attributes = [[None] * nattributes for _ in
+                                   range(nspecies)]
+        for key in counts.keys():
+            (species, attribute) = key
+            [c0, c1] = counts[key]
+            total_count = float(sum(c0) + sum(c1))
+            total_count = max(total_count, 1)
+            p0 = [c / total_count for c in c0]
+            p1 = [c / total_count for c in c1]
+            # Do the diffusive regularization
+            # 0 is definite, 1 is confident, 2 is don't know
+            # TODO: Verify those interpretations are correct
+            # So make diffusion occur from
+            # (present) 0 <-> 1 <-> 2 <-> (not present) 2 <-> 1 <-> 0
+            # TODO: Make this depend on total_count
+            # Maybe divide the multiplier by sqrt(total_count) or something
+            # like that.
+            probs = [p0[0], p0[1], p0[2], p1[2], p1[1], p1[0]]
+            for _ in xrange(num_diffusions):
+                new_probs = [0.] * 6
+                for i in range(6):
+                    # Special case the two certain cases
+                    if i == 0:
+                        new_probs[i + 1] += diffuse_multiplier * probs[i]
+                    elif i == len(probs) - 1:
+                        new_probs[i - 1] += diffuse_multiplier * probs[i]
+                    else:
+                        new_probs[i - 1] += .5 * diffuse_multiplier * probs[i]
+                        new_probs[i + 1] += .5 * diffuse_multiplier * probs[i]
+                    # Retain the rest of the probability
+                    new_probs[i] += (1. - diffuse_multiplier) * probs[i]
+                probs = new_probs;
+            p0 = [probs[0], probs[1], probs[2]]
+            p1 = [probs[5], probs[4], probs[3]]
+
+            self.species_attributes[species][attribute] = [p0, p1]
+
+        # Get probabilities p(q) = sum_s p(s) p(q | s)
+        self.attributes = [None] * nattributes
+        for att in xrange(nattributes):
+            prob_sum = [[0., 0., 0.], [0., 0., 0.]]
+            for species in xrange(nspecies):
+                # [[p00, p01, p02], [p10, p11, p12]]
+                att_probs = self.species_attributes[species][att]
+                for i in range(3):
+                    prob_sum[0][i] += priors[species] * att_probs[0][i]
+                    prob_sum[1][i] += priors[species] * att_probs[1][i]
+            self.attributes[att] = prob_sum
+
+
+
 
 if __name__ == '__main__':
     asker = BayesAsker_A10()
     asker.init()
-    # asker.probability = dummy_probability(None, None)
+    #asker.probability = dummy_probability(None, None)
     import time
     start_time = time.time()
     print asker.myAvianAsker('image', [])

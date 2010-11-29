@@ -36,8 +36,10 @@ for i in image_dir.readlines():
 
 #Open dataset
 ### NOTE: THIS LINE TAKES ABOUT 3.5 MINUTES ON MY COMPUTER
+print 'Loading dataset...'
 dataset = open("./student/student_cPickle.txt","r")
 data = cPickle.load(dataset)
+print 'Done loading dataset.'
 dataset.close()
 
 # Set output file
@@ -48,11 +50,13 @@ if '--hide' in sys.argv:
 #Begin new game
 Sum = 0
 n = 100
+print 'Initializing asker...'
 AA = BayesAsker_A10()##()
+print 'Done initializing asker.'
 for i in range(n):
         image_id = random.choice([k for k in image.keys()])
-        rndbrd = int((image[image_id].split("."))[0])       
-        print 'DEBUG: BIRD IS: ', rndbrd 
+        rndbrd = int((image[image_id].split("."))[0])
+        print 'DEBUG: BIRD IS: ', rndbrd
         AA.init()
         myAvianAsker = AA.myAvianAsker
         QAs = []
@@ -71,7 +75,7 @@ for i in range(n):
                         print >> out, ("Is it "+spec_dict[Q-nattributes+1]+"?")
                         print >> out, ("Sorry, you are wrong!\n")
                         A = '0' #incorrect guess
-                else:                
+                else:
                         print >> out, ("It "+ Ques_dict[str(Q)] +"?")
                         if Q in data[image_id].keys():
                                 A = random.choice(data[image_id][Q])
