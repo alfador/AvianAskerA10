@@ -185,17 +185,17 @@ class BayesAsker_A10():
                 for s in xrange(nspecies): # sum_s
                     # TODO: For a significant speedup, take these out of
                     # function calls and hard-code into the for loop.
-                    prob_y_s = cond_prob([[Y, y]], s) # p(q^k, y | s)
-                    # distribution takes into account wrong guesses, which
-                    # are not part of the usable questions.
+                    prob_y_s = cond_prob([[Y, y]], s) # p(y | s)
+
                     prob_s = posterior_distribution[s] # p(S)
                     prob_s_y = prob_y_s * prob_s / prob_y
+
                     # Should divide by log(2), but this isn't necessary for
                     # argmax
-                    # The limit of what we're adding as prob_s_qk_y -> 0
+                    # The limit of what we're adding as prob_s_y -> 0
                     # is 0, so don't add anything in that case.
                     if prob_s_y != 0:
-                        # sum_y p(y) * sum_s p(s | q^k, y) lg(p(s | q^k, y))
+                        # sum_y p(y) * sum_s p(s | y) lg(p(s | y))
                         neg_entropy += prob_y * prob_s_y * log(prob_s_y)
 
             if neg_entropy > max_neg_entropy:
