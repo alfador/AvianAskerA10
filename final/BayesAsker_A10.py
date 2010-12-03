@@ -84,14 +84,16 @@ class BayesAsker_A10():
         self.probability = independent_probability_diffuse(attribute_counts,
            self.priors)
 
-
+        # The set of questions already asked
+        self.asked_questions = set()
 
     def init(self):
         '''Prepares this BayesAsker for a new bird.'''
-        # self.distribution = self.priors[:]
-        # For now, all the necessary code is recalculated each time.
-        pass
+        # Reset the distribution to the original priors
+        self.probability.reset_prob()
 
+        # Reset the set of asked questions
+        self.asked_questions = set()
 
     # TODO: Use the image
     def myAvianAsker(self, image, questions):
@@ -111,56 +113,29 @@ class BayesAsker_A10():
         # Since this method is called after every question, we only need to
         # update our distribution for the last question asked.
 
-        # For now, just update the distribution to take into account all
-        # questions
-        distribution = self.priors[:]
+        # Condition on the last question, if there is a last question to
+        # condition on.
+        if len(questions) > 0:
+            question, answer = questions[-1]
 
-        # First, parse the questions, removing questions that correspond to
-        # asking what the bird is.
-        # This will be a list of question, answer pairs
-        usable_questions = []
-        # Questions which returned an answer of 'don't know' or questions that
-        # were already asked.
-        bad_questions = []
-        for [question, answer] in questions:
-            # The answer is either a string '0' for incorrect guess, '2' for
-            # don't know, or a list [present, confidence]
-            if type(answer) is str:
-                answer = int(answer)
-                if answer == 0:
-                    # Incorrect guess
-                    species = question - nattributes # [0, 199]
-                    distribution[species] = 0. # Definitely not that bird
-                elif answer == 2:
-                    # Can't get anything out of this question, maybe.
-                    # Note that this case doesn't imply uncertainty, just a lack
-                    # of data.  We shouldn't ask this question again.
-                    bad_questions.append(question)
+            # Add the question to the set of asked questions
+            self.asked_questions.add(question)
 
+            if answer == '0': 
+                # Incorrect bird guess, should remove that species
+                self.probability.remove_bird(question - nattributes)
+            elif answer == '2':
+                # A don't know answer, which means no data was present.
+                # In this case, there is nothing to condition on
+                pass
             else:
-                # Otherwise, the answer takes the form [present, confidence].
-                # Just add the question to the questions that have been asked.
-                usable_questions.append([question, answer])
+                # In this case, an answer to an attribute was obtained
+                self.probability.cond_on_question(questions[-1])
 
-            # Already asked that question.
-            bad_questions.append(question)
+        posterior_distribution = self.probability.get_probs()
 
-        # Since we may have changed the probability distribution, re-normalize
-        p_sum = sum(distribution)
-        distribution = [p / p_sum for p in distribution]
-
-        # Determine the current probability distribution over birds.
-        # Bayes' Rule: p(s | q^k) = p(q^k | s) * p(s) / p(q^k)
-        prob_questions = self.probability.prob(usable_questions)
-        posterior_distribution = [0] * len(distribution)
-        for i, prob in enumerate(distribution):
-            posterior_distribution[i] = self.probability.cond_prob(
-                usable_questions, i) * prob / prob_questions
-
-        # TODO: Why isn't this sum 1?
         dist_sum = sum(posterior_distribution)
         print 'Sum prob: ', dist_sum
-        posterior_distribution = [p / dist_sum for p in posterior_distribution]
 
         max_prob = max(posterior_distribution)
         print 'Max prob: ', max_prob
@@ -194,36 +169,35 @@ class BayesAsker_A10():
         cond_prob = self.probability.cond_prob
         # Ignore attribute 0, which we have almost no data on.
         for Y in xrange(1, nattributes): # argmax Y
-            # Don't ask questions we got 'don't know' back from
-            if Y in bad_questions:
+            # Don't ask questions that were already asked
+            if Y in self.asked_questions:
                 continue
+
             neg_entropy = 0
             for y in [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]: # sum_y
                 prob_y = self.probability.prob([[Y, y]]) # p(y)
-                usable_questions.append([Y, y])
-                prob_qk_y = self.probability.prob(usable_questions) # p(q^k, y)
                 # If the probability of getting these answers is 0, we'll be
                 # dealing with nonsense distributions.
                 # TODO: Does it make more sense to just continue through this
                 # for loop or continue through the outer one too?
-                if prob_qk_y == 0:
+                if prob_y == 0:
                     continue
                 for s in xrange(nspecies): # sum_s
                     # TODO: For a significant speedup, take these out of
                     # function calls and hard-code into the for loop.
-                    prob_qk_y_s = cond_prob(usable_questions, s) # p(q^k, y | s)
+                    prob_y_s = cond_prob([[Y, y]], s) # p(q^k, y | s)
                     # distribution takes into account wrong guesses, which
                     # are not part of the usable questions.
-                    prob_s = distribution[s] # p(S)
-                    prob_s_qk_y = prob_qk_y_s * prob_s / prob_qk_y
+                    prob_s = posterior_distribution[s] # p(S)
+                    prob_s_y = prob_y_s * prob_s / prob_y
                     # Should divide by log(2), but this isn't necessary for
                     # argmax
                     # The limit of what we're adding as prob_s_qk_y -> 0
                     # is 0, so don't add anything in that case.
-                    if prob_s_qk_y != 0:
+                    if prob_s_y != 0:
                         # sum_y p(y) * sum_s p(s | q^k, y) lg(p(s | q^k, y))
-                        neg_entropy += prob_y * prob_s_qk_y * log(prob_s_qk_y)
-                usable_questions.pop()
+                        neg_entropy += prob_y * prob_s_y * log(prob_s_y)
+
             if neg_entropy > max_neg_entropy:
                 max_neg_entropy = neg_entropy
                 best_question = Y
@@ -270,6 +244,31 @@ class probability:
         '''
         pass
 
+    def reset_prob(self):
+        '''
+        Reset the distribution on s to the distribution on construction
+        '''
+        pass
+
+    def cond_on_question(self, question):
+        '''
+        Modify the distribution on s by conditioning on the answer to a
+        particular question
+        '''
+        pass
+
+    def remove_bird(self, bird):
+        '''
+        Remove all the probability from an incorrect bird
+        '''
+        pass 
+
+    def get_probs(self):
+        '''
+        Returns the current distribution on birds
+        '''
+        pass
+
 
 class dummy_probability(probability):
     '''Returns probabilities that are valid but meaningless.  Only used for
@@ -303,6 +302,11 @@ class dummy_probability(probability):
         # Independent of species
         return self.base_prob ** len(questions)
 
+    def get_probs(self):
+        '''
+        Returns the current distribution on birds
+        '''
+        return [1.0 / nspecies for i in range(nspecies)]
 
 class independent_probability(probability):
     '''Represents a probability distribution where the attributes are all
@@ -347,7 +351,8 @@ class independent_probability(probability):
                     prob_sum[1][i] += priors[species] * att_probs[1][i]
             self.attributes[att] = prob_sum
 
-
+        # Set the current distribution to the priors
+        self.species_dist = self.priors[:]
 
     def prob(self, questions):
         '''Returns the probability p(q_1, ..., q_k) of the given questions.
@@ -365,7 +370,7 @@ class independent_probability(probability):
                 # a is 0 or 1
                 # c is 0, 1, or 2
                 prob *= self.species_attributes[species][q][a][c]
-            sum_prob += prob * self.priors[species]
+            sum_prob += prob * self.species_dist[species]
         return sum_prob
 
 
@@ -381,6 +386,41 @@ class independent_probability(probability):
             prob *= self.species_attributes[species][q][a][c]
         return prob
 
+    def reset_prob(self):
+        '''
+        Reset the distribution on s to the distribution on construction
+        '''
+        self.species_dist = self.priors[:]
+
+    def cond_on_question(self, question):
+        '''
+        Modify the distribution on s by conditioning on the answer to a
+        particular question
+        '''
+        q, [a, c] = question
+
+        # By baye's rule, P(s | q) = P(q | s) * P(s) / P(q). The p(q)
+        # is constant among all birds, so it is just a normalizing factor.
+        cond_probs = [self.species_attributes[s][q][a][c]
+                      * self.species_dist[s]
+                      for s in range(nspecies)]
+        sum_cond_probs = sum(cond_probs)
+        self.species_dist = [val / sum_cond_probs for val in cond_probs]
+
+    def remove_bird(self, bird):
+        '''
+        Remove a bird from consideration
+        '''
+        self.species_dist[bird] = 0
+        newSum = sum(self.species_dist)
+
+        self.species_dist = [val / newSum for val in self.species_dist]
+
+    def get_probs(self):
+        '''
+        Returns the current distribution on birds
+        '''
+        return self.species_dist
 
 class independent_probability_diffuse(independent_probability):
     '''Represents a probability distribution where the attributes are all
@@ -452,7 +492,9 @@ class independent_probability_diffuse(independent_probability):
                     prob_sum[1][i] += priors[species] * att_probs[1][i]
             self.attributes[att] = prob_sum
 
-
+        
+        # Set the current distribution to the priors
+        self.species_dist = self.priors[:]
 
 
 if __name__ == '__main__':
