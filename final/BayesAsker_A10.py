@@ -166,7 +166,11 @@ class BayesAsker_A10():
         max_neg_entropy = -nspecies # Negative entropy bounded below by -lg(|S|)
         best_question = -1
         log = math.log # Minor speedups
-        cond_prob = self.probability.cond_prob
+
+        # Get the whole table of conditional probabilities, to avoid having
+        # lots of function calls in the inner loop
+        cond_probs = self.probability.get_cond_probs()
+
         # Ignore attribute 0, which we have almost no data on.
         for Y in xrange(1, nattributes): # argmax Y
             # Don't ask questions that were already asked
@@ -175,18 +179,19 @@ class BayesAsker_A10():
 
             neg_entropy = 0
             for y in [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]: # sum_y
-                prob_y = self.probability.prob([[Y, y]]) # p(y)
+                # Get the marginal for this particular response.
+                prob_y = sum([cond_probs[s][Y][y[0]][y[1]]
+                              for s in range(nspecies)])
+
                 # If the probability of getting these answers is 0, we'll be
                 # dealing with nonsense distributions.
                 # TODO: Does it make more sense to just continue through this
                 # for loop or continue through the outer one too?
                 if prob_y == 0:
                     continue
-                for s in xrange(nspecies): # sum_s
-                    # TODO: For a significant speedup, take these out of
-                    # function calls and hard-code into the for loop.
-                    prob_y_s = cond_prob([[Y, y]], s) # p(y | s)
 
+                for s in xrange(nspecies): # sum_s
+                    prob_y_s = cond_probs[s][Y][y[0]][y[1]]
                     prob_s = posterior_distribution[s] # p(S)
                     prob_s_y = prob_y_s * prob_s / prob_y
 
@@ -269,6 +274,13 @@ class probability:
         '''
         pass
 
+    def get_cond_probs(self):
+        '''
+        Returns the current conditional probabilities of questions
+        given species
+        '''
+        pass
+
 
 class dummy_probability(probability):
     '''Returns probabilities that are valid but meaningless.  Only used for
@@ -307,6 +319,15 @@ class dummy_probability(probability):
         Returns the current distribution on birds
         '''
         return [1.0 / nspecies for i in range(nspecies)]
+
+    def get_cond_probs(self):
+        '''
+        Returns the current conditional probabilities of questions
+        given species
+        '''
+        return [ [ [ [1.0 / 6 for c in range(3)] for h in range(2)]
+                   for y in range(nattributes)]
+                 for s in range(nspecies)]
 
 class independent_probability(probability):
     '''Represents a probability distribution where the attributes are all
@@ -421,6 +442,13 @@ class independent_probability(probability):
         Returns the current distribution on birds
         '''
         return self.species_dist
+
+    def get_cond_probs(self):
+        '''
+        Returns the current conditional probabilities of questions
+        given species
+        '''
+        return self.species_attributes
 
 class independent_probability_diffuse(independent_probability):
     '''Represents a probability distribution where the attributes are all
