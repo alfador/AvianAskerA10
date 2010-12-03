@@ -181,6 +181,7 @@ class BayesAsker_A10():
             for y in [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]: # sum_y
                 # Get the marginal for this particular response.
                 prob_y = sum([cond_probs[s][Y][y[0]][y[1]]
+                              * posterior_distribution[s]
                               for s in range(nspecies)])
 
                 # If the probability of getting these answers is 0, we'll be
