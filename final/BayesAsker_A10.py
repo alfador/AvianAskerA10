@@ -85,7 +85,7 @@ class BayesAsker_A10():
            self.priors)
 
         # The set of questions already asked
-        self.asked_questions = set()
+        self.bad_questions = set()
 
     def init(self):
         '''Prepares this BayesAsker for a new bird.'''
@@ -93,7 +93,7 @@ class BayesAsker_A10():
         self.probability.reset_prob()
 
         # Reset the set of asked questions
-        self.asked_questions = set()
+        self.bad_questions = set()
 
     # TODO: Use the image
     def myAvianAsker(self, image, questions):
@@ -118,16 +118,15 @@ class BayesAsker_A10():
         if len(questions) > 0:
             question, answer = questions[-1]
 
-            # Add the question to the set of asked questions
-            self.asked_questions.add(question)
-
             if answer == '0': 
                 # Incorrect bird guess, should remove that species
                 self.probability.remove_bird(question - nattributes)
             elif answer == '2':
                 # A don't know answer, which means no data was present.
-                # In this case, there is nothing to condition on
-                pass
+                # In this case, there is nothing to condition on. But we
+                # should avoid this question again, since it will give
+                # more don't know answers
+                self.bad_questions.add(question)
             else:
                 # In this case, an answer to an attribute was obtained
                 self.probability.cond_on_question(questions[-1])
@@ -173,8 +172,9 @@ class BayesAsker_A10():
 
         # Ignore attribute 0, which we have almost no data on.
         for Y in xrange(1, nattributes): # argmax Y
-            # Don't ask questions that were already asked
-            if Y in self.asked_questions:
+            # Don't ask questions that were already asked and received
+            # a don't know.
+            if Y in self.bad_questions:
                 continue
 
             neg_entropy = 0
