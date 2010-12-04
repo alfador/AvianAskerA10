@@ -3,6 +3,7 @@ from BayesAsker_A10 import *## import *
 import cPickle
 import sys
 import os
+import time
 
 nspecies = 200
 nattributes = 288
@@ -37,8 +38,10 @@ for i in image_dir.readlines():
 #Open dataset
 ### NOTE: THIS LINE TAKES ABOUT 3.5 MINUTES ON MY COMPUTER
 print 'Loading dataset...'
+start_time = time.time()
 dataset = open("./student/student_cPickle.txt","r")
 data = cPickle.load(dataset)
+dataset_loading_time = time.time() - start_time
 print 'Done loading dataset.'
 dataset.close()
 
@@ -51,8 +54,11 @@ if '--hide' in sys.argv:
 Sum = 0
 n = 100
 print 'Initializing asker...'
+start_time = time.time()
 AA = BayesAsker_A10()##()
+asker_initialization_time = time.time() - start_time
 print 'Done initializing asker.'
+start_time = time.time()
 for i in range(n):
         image_id = random.choice([k for k in image.keys()])
         rndbrd = int((image[image_id].split("."))[0])
@@ -103,4 +109,10 @@ for i in range(n):
                 f.write(str(QAs))
                 f.close()
         print "Num is " + str(i+1) + ", Sum is "+str(Sum)+", Score now is "+str(Sum/(i+1))
+asking_questions_time = time.time() - start_time
 print "Your final score is "+str(Sum/n)
+print "Time to load dataset: %g" % dataset_loading_time
+print "Time to initialize asker: %g" % asker_initialization_time
+print "Time taken to ask %d questions: %g" % (Sum, asking_questions_time)
+print "Average time per question: %g" % (asking_questions_time / Sum)
+print "Average time per bird: %g" % (asking_questions_time / n) 
