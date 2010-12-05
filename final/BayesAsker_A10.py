@@ -31,6 +31,8 @@ class BayesAsker_A10():
         '''
         Initializer.  Loads necessary data from file.
         '''
+        print 'Bias is %g' % species_guess_bias
+        print 'Diffuse multiplier is %g' % diffuse_multiplier
         species_file = open(student_image_filename, 'r')
         # Lines in this file are of the form:
         # id(197-6032) num(001-200).path/to/image
@@ -137,9 +139,6 @@ class BayesAsker_A10():
 
         posterior_distribution = self.probability.get_probs()
 
-        dist_sum = sum(posterior_distribution)
-        print 'Sum prob: ', dist_sum
-
         max_prob = max(posterior_distribution)
         print 'Max prob: ', max_prob
         # Calculate current entropy and print it out.
@@ -230,6 +229,7 @@ class BayesAsker_A10():
 
         # Compare to best attribute
         if neg_entropy * species_guess_bias > max_neg_entropy:
+            print 'best question ent: ', neg_entropy * species_guess_bias
             # Best question is a bird
             # Return something in [288, 487]
             return max_prob_index + nattributes
@@ -515,20 +515,21 @@ class independent_probability_diffuse(independent_probability):
             # TODO: Make this depend on total_count
             # Maybe divide the multiplier by sqrt(total_count) or something
             # like that.
+            multiplier = diffuse_multiplier / math.sqrt(total_count)
             probs = [p0[0], p0[1], p0[2], p1[2], p1[1], p1[0]]
             for _ in xrange(num_diffusions):
                 new_probs = [0.] * 6
                 for i in range(6):
                     # Special case the two certain cases
                     if i == 0:
-                        new_probs[i + 1] += diffuse_multiplier * probs[i]
+                        new_probs[i + 1] += multiplier * probs[i]
                     elif i == len(probs) - 1:
-                        new_probs[i - 1] += diffuse_multiplier * probs[i]
+                        new_probs[i - 1] += multiplier * probs[i]
                     else:
-                        new_probs[i - 1] += .5 * diffuse_multiplier * probs[i]
-                        new_probs[i + 1] += .5 * diffuse_multiplier * probs[i]
+                        new_probs[i - 1] += .5 * multiplier * probs[i]
+                        new_probs[i + 1] += .5 * multiplier * probs[i]
                     # Retain the rest of the probability
-                    new_probs[i] += (1. - diffuse_multiplier) * probs[i]
+                    new_probs[i] += (1. - multiplier) * probs[i]
                 probs = new_probs;
             p0 = [probs[0], probs[1], probs[2]]
             p1 = [probs[5], probs[4], probs[3]]
