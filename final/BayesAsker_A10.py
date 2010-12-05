@@ -13,9 +13,14 @@ nspecies = 200
 nattributes = 288
 
 # Parameters
-prob_cutoff = .25 # If the max probability is above this, guess a bird.
 diffuse_multiplier = .01 # Parameters for diffuse regularization
 num_diffusions = 5
+# Bias towards guessing about a particular species rather than an attribute.
+# A value of 1 corresponds to no bias, values less than 1 make guessing the
+# species more likely, and values greater than 1 make guessing about an
+# attribute more likely.
+species_guess_bias = 1.0
+
 
 class BayesAsker_A10():
     '''Asker using a simplistic Bayes net.'''
@@ -75,7 +80,6 @@ class BayesAsker_A10():
         dataset_file.close()
 
         # Determine priors
-        # TODO: Should this really be uniform?
         self.priors = [1. / nspecies] * nspecies
 
         # Construct a probability distribution
@@ -145,13 +149,6 @@ class BayesAsker_A10():
                 entropy += p * math.log(1. / p)
         print 'Species entropy: ', entropy / math.log(2)
 
-        # If any of the probabilities are above some threshold, guess that bird
-        if max_prob > prob_cutoff:
-            # TODO: Optimize this value
-            best_species = posterior_distribution.index(max_prob)
-            guess = best_species + nattributes
-            return guess
-
         # Pick the question that maximizes mutual information.  That is,
         # argmax_Y I(S ; Y | q^k)
         # I(S ; Y | q^k) = H(S | q^k) - H(S | q^k, Y)
@@ -208,7 +205,36 @@ class BayesAsker_A10():
                 max_neg_entropy = neg_entropy
                 best_question = Y
 
-        # Ask the best question
+        # Check if asking about a particular bird gives better information gain
+        # Still want argmin_Y H(S | q^k, Y), but now Y is asking about a
+        # particular bird.
+        # p(S | q^k) is just the posterior distribution, so H(S | q^k, Y) is
+        # p(Species Y) * H(S | q^k, species Y) +
+        # p(not species Y) * H(S | q^k, not species Y)
+        # = p(not species Y) * H(S | q^k, not species Y), which should(?) be
+        # minimized when Y is the species with the largest posterior probability
+        # We previously calculated the maximum negative entropy, so we should
+        # really calculate that.
+        # argmax_Y p(not species Y) * sum_s p(s | q^k, y) lg(p(s | q^k, not Y))
+        max_prob = max(posterior_distribution)
+        max_prob_index = posterior_distribution.index(max_prob)
+        # If the species is not Y, zero out Y and renormalize
+        new_dist = posterior_distribution[:]
+        new_dist[max_prob_index] = 0.
+        sum_new_dist = sum(new_dist)
+        new_dist = [x / sum_new_dist for x in new_dist]
+        neg_entropy = 0.
+        for p in new_dist:
+            if p != 0:
+                neg_entropy += (1 - max_prob) * p * math.log(p)
+
+        # Compare to best attribute
+        if neg_entropy * species_guess_bias > max_neg_entropy:
+            # Best question is a bird
+            # Return something in [288, 487]
+            return max_prob_index + nattributes
+
+        # Ask the best attribute question
         return best_question
 
 
@@ -458,7 +484,7 @@ class independent_probability_diffuse(independent_probability):
 
     # IMPLEMENTATION NOTES:
     # IF THE GIVEN COUNTS DON'T INCLUDE ANY INSTANCES OF A (SPECIES, ATTRIBUTE)
-    # PAIR, THOSE PROBABILITIES ARE SET TO 0.
+    # PAIR, THOSE 6 PROBABILITIES ARE ALL SET TO 0.
 
 
     def __init__(self, counts, priors):

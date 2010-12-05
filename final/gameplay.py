@@ -108,7 +108,7 @@ for i in range(n):
                 f = open("QA.txt", "w")
                 f.write(str(QAs))
                 f.close()
-        print "Num is " + str(i+1) + ", Sum is "+str(Sum)+", Score now is "+str(Sum/(i+1))
+        print "Num is " + str(i+1) + ", Sum is "+str(Sum)+", Score now is "+str(float(Sum)/(i+1))
 asking_questions_time = time.time() - start_time
 print "Your final score is "+str(Sum/n)
 print "Time to load dataset: %g" % dataset_loading_time
