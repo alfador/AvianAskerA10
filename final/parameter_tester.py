@@ -1,5 +1,5 @@
 import random
-from BayesAsker_A10 import *## import *
+import BayesAsker_A10 
 import cPickle
 import sys
 import os
@@ -50,9 +50,11 @@ def std_dev(nums):
 
 
 ### LIST PARAMETERS HERE
-parameter_sets = [(.001, 5, 1.),  (.01, 5, 1.),  (.1, 5, 1.),
-                  (.001, 5, .8),  (.01, 5, .8),  (.1, 5, .8),
-                  (.001, 5, 1.2), (.01, 5, 1.2), (.1, 5, 1.2)]
+parameter_sets = []
+for diffuse in [.0001, .1, 1.]:
+    for diffusions in [5]:
+        for species_bias in [.33, 1., 1.66]:
+            parameter_sets.append((diffuse, diffusions, species_bias))
 
 ### File to write to
 output_file = open('parameter_results.txt', 'a')
@@ -74,7 +76,7 @@ for parameter in parameter_sets:
     Sum = 0
     num_questions = []
     print 'Initializing asker...'
-    AA = BayesAsker_A10()##()
+    AA = BayesAsker_A10.BayesAsker_A10()##()
     for i in range(n):
             image_id = random.choice([k for k in image.keys()])
             rndbrd = int((image[image_id].split("."))[0])
@@ -92,6 +94,7 @@ for parameter in parameter_sets:
                             print >> out, ("The question is out of range")
                             continue
                     elif Q >= nattributes and Q != rndbrd:
+                            print >> out, ("Incorrect guess")
                             A = '0' #incorrect guess
                     else:
                             if Q in data[image_id].keys():
@@ -104,5 +107,6 @@ for parameter in parameter_sets:
             print "Num is " + str(i+1) + ", Sum is "+str(Sum)+", Score now is "+str(float(Sum)/(i+1))
     score = float(Sum) / n
     output_file.write(str(score) + ', ' + str(std_dev(num_questions)) + '\n')
+    output_file.flush()
 
 output_file.close()
