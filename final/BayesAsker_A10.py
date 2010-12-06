@@ -5,6 +5,7 @@ dataset.txt and specie_names.txt
 '''
 
 import math
+import random
 
 student_image_filename = 'student/student_image.txt'
 dataset_filename = 'student/student_dataset.txt'
@@ -20,6 +21,13 @@ num_diffusions = 5
 # species more likely, and values greater than 1 make guessing about an
 # attribute more likely.
 species_guess_bias = 1.0
+
+# After asking this many questions, if we don't have it yet ask more attribute
+# questions
+question_cutoff = 20
+# Above 'question_cutoff' number of questions, if we were going to ask about
+# a particular species, ask about an attribute instead with this probability
+prob_attribute_question = .5
 
 
 class BayesAsker_A10():
@@ -148,6 +156,12 @@ class BayesAsker_A10():
                 entropy += p * math.log(1. / p)
         print 'Species entropy: ', entropy / math.log(2)
 
+        # Special case: only one bird has non-zero probability.
+        if posterior_distribution.count(0.) == nspecies - 1:
+            species = posterior_distribution.index(1.)
+            return species + nattributes
+            
+
         # Pick the question that maximizes mutual information.  That is,
         # argmax_Y I(S ; Y | q^k)
         # I(S ; Y | q^k) = H(S | q^k) - H(S | q^k, Y)
@@ -227,9 +241,14 @@ class BayesAsker_A10():
             if p != 0:
                 neg_entropy += (1 - max_prob) * p * math.log(p)
 
+        print 'best guess negative entropy: ', neg_entropy
         # Compare to best attribute
-        if neg_entropy * species_guess_bias > max_neg_entropy:
-            print 'best question ent: ', neg_entropy * species_guess_bias
+        # If we've asked enough questions, there's probably something wrong
+        # with the distribution, so with some probability always ask an
+        # attribute
+        if (neg_entropy * species_guess_bias > max_neg_entropy) and \
+           (len(questions) < question_cutoff or \
+            random.random() < (1 - prob_attribute_question)):
             # Best question is a bird
             # Return something in [288, 487]
             return max_prob_index + nattributes
@@ -515,7 +534,7 @@ class independent_probability_diffuse(independent_probability):
             # TODO: Make this depend on total_count
             # Maybe divide the multiplier by sqrt(total_count) or something
             # like that.
-            multiplier = diffuse_multiplier / math.sqrt(total_count)
+            multiplier = min(diffuse_multiplier / math.sqrt(total_count), 1.)
             probs = [p0[0], p0[1], p0[2], p1[2], p1[1], p1[0]]
             for _ in xrange(num_diffusions):
                 new_probs = [0.] * 6
