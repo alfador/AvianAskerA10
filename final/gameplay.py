@@ -1,5 +1,5 @@
 import random
-from BayesAsker_A10 import *## import *
+from AvianAsker_A10 import *## import *
 import cPickle
 import sys
 import os
@@ -55,7 +55,7 @@ Sum = 0
 n = 100
 print 'Initializing asker...'
 start_time = time.time()
-AA = BayesAsker_A10()##()
+AA = AvianAsker_A10()##()
 asker_initialization_time = time.time() - start_time
 print 'Done initializing asker.'
 start_time = time.time()

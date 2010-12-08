@@ -30,7 +30,7 @@ question_cutoff = 20
 prob_attribute_question = .5
 
 
-class BayesAsker_A10():
+class AvianAsker_A10():
     '''Asker using a simplistic Bayes net.'''
     # TODO: This doesn't really use a Bayes net, so rename it.
 

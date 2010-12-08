@@ -1,5 +1,5 @@
 import random
-import BayesAsker_A10 
+import AvianAsker_A10 
 import cPickle
 import sys
 import os
@@ -66,9 +66,9 @@ for parameter in parameter_sets:
     diffuse      = parameter[0]
     diffusions   = parameter[1]
     species_bias = parameter[2]
-    BayesAsker_A10.diffuse_multiplier = diffuse
-    BayesAsker_A10.num_diffusions = diffusions
-    BayesAsker_A10.species_guess_bias = species_bias
+    AvianAsker_A10.diffuse_multiplier = diffuse
+    AvianAsker_A10.num_diffusions = diffusions
+    AvianAsker_A10.species_guess_bias = species_bias
     output_file.write(str(parameter) + ": ")
     print 'On parameter set: ', parameter
 
@@ -76,7 +76,7 @@ for parameter in parameter_sets:
     Sum = 0
     num_questions = []
     print 'Initializing asker...'
-    AA = BayesAsker_A10.BayesAsker_A10()##()
+    AA = AvianAsker_A10.AvianAsker_A10()##()
     for i in range(n):
             image_id = random.choice([k for k in image.keys()])
             rndbrd = int((image[image_id].split("."))[0])
